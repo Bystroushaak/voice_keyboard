@@ -59,6 +59,9 @@ def read_from(server, port):
             data = s.recv(1024)
             if data:
                 yield data
+            else:
+                # restart connection
+                readers = [_verbose_wrapper_make_connection(server, port)]
 
         last_time = time.time()
 
