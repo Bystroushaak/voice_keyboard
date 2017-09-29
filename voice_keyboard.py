@@ -22,6 +22,10 @@ def _make_connection(server, port):
 
 
 def _verbose_wrapper_make_connection(server, port):
+    """
+    Try to make connection to given server:port. If the connection can't be
+    established, wait and try again after one second.
+    """
     while True:
         try:
             conn =  _make_connection(server, port)
@@ -29,11 +33,11 @@ def _verbose_wrapper_make_connection(server, port):
             return conn
         except socket.error:
             sys.stderr.write("Can't connect to %s:%d " % (server, port))
-            sys.stderr.write("Waiting 1s\n")
+            sys.stderr.write("Waiting 1s..\n")
             time.sleep(1)
 
 
-def connect_to(server, port, callback):
+def read_from(server, port):
     readers = [_verbose_wrapper_make_connection(server, port)]
 
     last_time = 0
@@ -54,7 +58,7 @@ def connect_to(server, port, callback):
         for s in read_ready:
             data = s.recv(1024)
             if data:
-                callback(data)
+                yield data
 
         last_time = time.time()
 
@@ -172,6 +176,7 @@ class TextProcessor(object):
             self.sent += new
 
 
-
 if __name__ == '__main__':
-    connect_to(sys.argv[1], int(sys.argv[2]), TextProcessor().process_text)
+    text_processor = TextProcessor()
+    for chunk in read_from(sys.argv[1], int(sys.argv[2])):
+        text_processor.process_text(chunk)
