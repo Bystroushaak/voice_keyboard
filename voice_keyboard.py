@@ -165,4 +165,3 @@ class TemporaryBuffer(object):
 if __name__ == '__main__':
     buffer = TemporaryBuffer()
     connect_to(sys.argv[1], int(sys.argv[2]), buffer.process)
-a
