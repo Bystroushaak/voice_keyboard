@@ -10,6 +10,10 @@ import select
 import socket
 
 
+BS = "\x08"
+ESC = "\x1b"
+
+
 def _make_connection(server, port):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((server, port))
@@ -17,8 +21,20 @@ def _make_connection(server, port):
     return client
 
 
+def _verbose_wrapper_make_connection(server, port):
+    while True:
+        try:
+            conn =  _make_connection(server, port)
+            print "Connected"
+            return conn
+        except socket.error:
+            sys.stderr.write("Can't connect to %s:%d " % (server, port))
+            sys.stderr.write("Waiting 1s\n")
+            time.sleep(1)
+
+
 def connect_to(server, port, callback):
-    readers = [_make_connection(server, port)]
+    readers = [_verbose_wrapper_make_connection(server, port)]
 
     last_time = 0
     while True:
@@ -28,7 +44,7 @@ def connect_to(server, port, callback):
             for error in errors:
                 error.close()
 
-            readers = [_make_connection(server, port)]
+            readers = [_verbose_wrapper_make_connection(server, port)]
 
             continue
 
@@ -43,59 +59,12 @@ def connect_to(server, port, callback):
         last_time = time.time()
 
 
-class TemporaryBuffer(object):
+class TextProcessor(object):
     def __init__(self):
-        self.storage = ""
         self.sent = ""
 
     def reset(self):
-        self.storage = ""
         self.sent = ""
-
-    def _no_bs_at_start(self, line):
-        cnt = 0
-        for i in line:
-            if i == "":
-                cnt += 1
-            else:
-                break
-
-        return cnt
-
-    def process(self, data):
-        data = data.strip()
-
-        if not data:
-            return
-
-        if not data.replace("", "").strip():
-            return
-
-        # new line
-        if "" in data:
-            self.reset()
-            return
-
-        bs_cnt = self._no_bs_at_start(data)
-
-        storage = [x for x in data[bs_cnt:].split("") if x.strip()][-1]
-
-        data = data.replace("", "[ESC]")
-        data = data.replace("", "[BS]")
-
-        print
-        print ">s>%s<<<" % storage
-
-        storage = storage.decode("utf-8", "ignore")
-
-        storage = storage.replace(" enter ", "\n")
-        storage = storage.replace(" Enter ", "\n")
-        # storage = storage.replace("enter ", "\n")
-        # storage = storage.replace("Enter ", "\n")
-        storage = storage.replace("enter", "\n")
-        storage = storage.replace("Enter", "\n")
-
-        self.send_diff(storage)
 
     def send(self, data):
         data = data.encode("utf-8")
@@ -120,6 +89,48 @@ class TemporaryBuffer(object):
         os.system("xdotool key BackSpace")
         print "send>backspace"
 
+    def _no_bs_at_start(self, line):
+        cnt = 0
+        for i in line:
+            if i == BS:
+                cnt += 1
+            else:
+                break
+
+        return cnt
+
+    def process_text(self, data):
+        data = data.strip()
+
+        if not data:
+            return
+
+        if not data.replace(BS, "").strip():
+            return
+
+        # new line
+        if ESC in data:
+            self.reset()
+            return
+
+        bs_cnt = self._no_bs_at_start(data)
+
+        buffer = [x for x in data[bs_cnt:].split(BS) if x.strip()][-1]
+
+        print
+        print ">s>%s<<<" % buffer
+
+        buffer = buffer.decode("utf-8", "ignore")
+
+        buffer = buffer.replace(" enter ", "\n")
+        buffer = buffer.replace(" Enter ", "\n")
+        # buffer = buffer.replace("enter ", "\n")
+        # buffer = buffer.replace("Enter ", "\n")
+        buffer = buffer.replace("enter", "\n")
+        buffer = buffer.replace("Enter", "\n")
+
+        self.send_diff(buffer)
+
     def _index_where_differ(self, a, b):
         if not a:
             return 0
@@ -136,17 +147,17 @@ class TemporaryBuffer(object):
 
         return len(a)
 
-    def send_diff(self, storage):
+    def send_diff(self, buffer):
         if not self.sent:
-            self.send(storage)
-            self.sent = storage
+            self.send(buffer)
+            self.sent = buffer
             return
 
-        di = self._index_where_differ(self.sent, storage)
+        di = self._index_where_differ(self.sent, buffer)
 
         if di == len(self.sent):
-            if len(storage) > di:
-                new = storage[di:]
+            if len(buffer) > di:
+                new = buffer[di:]
                 self.send(new)
                 self.sent += new
         else:
@@ -156,12 +167,11 @@ class TemporaryBuffer(object):
             for _ in tail:
                 self.backspace()
 
-            new = storage[di:]
+            new = buffer[di:]
             self.send(new)
             self.sent += new
 
 
 
 if __name__ == '__main__':
-    buffer = TemporaryBuffer()
-    connect_to(sys.argv[1], int(sys.argv[2]), buffer.process)
+    connect_to(sys.argv[1], int(sys.argv[2]), TextProcessor().process_text)
