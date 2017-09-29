@@ -121,9 +121,8 @@ class TextProcessor(object):
 
         buffer = [x for x in data[bs_cnt:].split(BS) if x.strip()][-1]
 
-        print
-        print ">s>%s<<<" % buffer
-
+        # because of the only delta of the sentence is sent, I want to work
+        # with unicode to prevent splitting UTF-8 sequences
         buffer = buffer.decode("utf-8", "ignore")
 
         buffer = buffer.replace(" enter ", "\n")
@@ -133,9 +132,18 @@ class TextProcessor(object):
         buffer = buffer.replace("enter", "\n")
         buffer = buffer.replace("Enter", "\n")
 
+        buffer = buffer.replace(BS, "[BS]")
+
+        print
+        print ">s>%s<<<" % buffer
+
         self.send_diff(buffer)
 
     def _index_where_differ(self, a, b):
+        """
+        Just simple comparator to see the index where the a and b are
+        different.
+        """
         if not a:
             return 0
 
@@ -157,9 +165,19 @@ class TextProcessor(object):
             self.sent = buffer
             return
 
+        # apple's voice recognition tends to correct sentences as you type
+        # this tries to compare the sentence with the already sent data, to
+        # see what was chenged and then send only difference of the change
         di = self._index_where_differ(self.sent, buffer)
 
-        if di == len(self.sent):
+        # do not go more than 5 characters to the past (using backspace)
+        if len(self.sent) - di > 5:
+            di = len(self.sent) - 5
+
+        def nothing_changed(di):
+            return di == len(self.sent)
+
+        if nothing_changed(di):
             if len(buffer) > di:
                 new = buffer[di:]
                 self.send(new)
