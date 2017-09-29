@@ -1,9 +1,8 @@
 Voice keyboard
 --------------
-
 Just my toy project / attempt to use speech recognition on the iOS as a keyboard for my linux PC.
 
-Use [Shelly SSH client](https://itunes.apple.com/us/app/shelly-ssh-client/id989642999?mt=8) (yes, you have to use this, others use different buffering techniques so text can't be transported in realtime) on the phone to connect to your server and run
+Use `Shelly SSH client <https://itunes.apple.com/us/app/shelly-ssh-client/id989642999?mt=8>`_ (yes, you have to use this, others use different buffering techniques so text can't be transported in realtime) on the phone to connect to your server and run
 
 ::
 
