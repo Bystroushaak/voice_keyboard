@@ -28,7 +28,7 @@ def _verbose_wrapper_make_connection(server, port):
     """
     while True:
         try:
-            conn =  _make_connection(server, port)
+            conn = _make_connection(server, port)
             print "Connected"
             return conn
         except socket.error:
@@ -38,7 +38,15 @@ def _verbose_wrapper_make_connection(server, port):
 
 
 def read_from(server, port):
-    readers = [_verbose_wrapper_make_connection(server, port)]
+    readers = []
+
+    def reset_connection():
+        while readers:
+            readers.pop()
+
+        readers.append(_verbose_wrapper_make_connection(server, port))
+
+    reset_connection()
 
     last_time = 0
     while True:
@@ -48,20 +56,26 @@ def read_from(server, port):
             for error in errors:
                 error.close()
 
-            readers = [_verbose_wrapper_make_connection(server, port)]
-
+            reset_connection()
             continue
 
         if time.time() - last_time < 0.5:
             continue
 
         for s in read_ready:
-            data = s.recv(1024)
+            try:
+                data = s.recv(1024)
+            except socket.error:
+                yield ESC
+                reset_connection()
+                break
+
             if data:
                 yield data
             else:
+                yield ESC
                 # restart connection
-                readers = [_verbose_wrapper_make_connection(server, port)]
+                reset_connection()
 
         last_time = time.time()
 
